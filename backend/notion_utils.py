@@ -10,6 +10,7 @@ NOTION_API_KEY = os.getenv("NOTION_API_KEY")
 EXPENSES_DB_ID = os.getenv("EXPENSES_DB_ID")
 CATEGORIES_DB_ID = os.getenv("CATEGORIES_DB_ID")
 MONTHLY_REPORTS_DB_ID = os.getenv("MONTHLY_REPORTS_DB_ID")
+SUBSCRIPTIONS_DB_ID = os.getenv("SUBSCRIPTIONS_DB_ID")
 
 HEADERS = {
     "Authorization": f"Bearer {NOTION_API_KEY}",
@@ -57,7 +58,6 @@ def get_expenses_for_month(year, month):
 
     response = requests.post(url, headers=HEADERS, json=query_payload)
     
-    
     if response.status_code == 200:
         expenses = response.json()["results"]
         expense_data = []
@@ -95,6 +95,19 @@ def get_categories():
         except KeyError:
             continue
     return category_list
+
+#Fetch Subscriptions Data
+def get_subscriptions():
+    subscriptions = fetch_database_entries(SUBSCRIPTIONS_DB_ID)
+    subscription_list = []
+    for item in subscriptions:
+        try:
+            subscription_name = item["properties"]["Name"]["title"][0]["text"]["content"]
+            cost = item["properties"]["Cost"]["number"]
+            subscription_list.append({"subscription": subscription_name, "cost": cost})
+        except KeyError:
+            continue
+    return subscription_list
 
 # Write Monthly Report to Notion
 def write_report_to_notion(year, month, report_text, expenses):
