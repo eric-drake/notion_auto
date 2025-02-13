@@ -1,4 +1,4 @@
-from backend.notion_utils import get_expenses_for_month, write_report_to_notion
+from backend.notion_utils import get_expenses_for_month, write_report_to_notion,clear_month_expense_sync,add_expenses_to_month_expense_sync
 
 if __name__ == "__main__":
     # Select the month dynamically
@@ -11,6 +11,13 @@ if __name__ == "__main__":
 
     # Get expenses for the selected month
     expenses = get_expenses_for_month(year, month)
+    if not expenses:
+        print("⚠️ No expenses found for the selected month. Please check your database.")
+    else:
+        print(f"✅ Found {len(expenses)} expenses for {year}-{month:02d}")
+
+    clear_month_expense_sync()
+    add_expenses_to_month_expense_sync(expenses)
 
     # Generate report text
     total_spent = sum(exp["amount"] for exp in expenses)

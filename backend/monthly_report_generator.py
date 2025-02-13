@@ -1,11 +1,11 @@
-from backend.notion_utils import get_expenses, get_categories
+from backend.notion_utils import get_expenses, get_categories, get_subscriptions
 
 
 def generate_monthly_summary():
     """Processes expenses and generates a monthly summary"""
     expenses = get_expenses()
     categories = get_categories()
-    subscription_expenses = get_subscriptions
+    subscription_expenses = get_subscriptions()
 
     # Convert categories into a dictionary for easy lookup
     category_budget_map = {c["category"]: c["budget"] for c in categories}
