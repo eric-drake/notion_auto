@@ -156,21 +156,32 @@ def get_accounts():
     return account_list
 
 # Write Monthly Report to Notion
-def write_report_to_notion(year, month, report_text, expenses):
+def write_report_to_notion(year, month, report_text, expenses, total_expense, total_budget, category_percentages,today):
     """Creates a Monthly Report in Notion and links filtered expenses using a relation property."""
     current_month = f"{year}-{month:02d}"
 
     url = "https://api.notion.com/v1/pages"
 
     # Extract Expense IDs to link them in the relation property
-    expense_ids = [{"id": expense["id"]} for expense in expenses]
+    expense_ids = [{"id": expense["id"]} for expense in expenses if expense["id"] != "No ID"]
+
+    # Filter out Rent, Subscription, and Utilities from category percentages
+    filtered_category_percentages = {k: v for k, v in category_percentages.items() if k not in ["Rent", "Subscription", "Utilities"]}
+
+    # Create properties for filtered category percentages
+    category_properties = {}
+    for category, percentage in filtered_category_percentages.items():
+        category_properties[f"{category} Budget Usage"] = {"number": percentage if percentage != 0 else 0.0}
 
     data = {
         "parent": {"database_id": os.getenv("MONTHLY_REPORTS_DB_ID")},
         "properties": {
             "Name": {"title": [{"text": {"content": f"{current_month} Summary"}}]},
             "Report Notes": {"rich_text": [{"text": {"content": report_text}}]},
-            "Related Expense": {"relation": expense_ids}  # Linking expenses
+            "Related Expense": {"relation": expense_ids}, # Linking expenses
+            "Total Budget Usage": {"number": (total_expense/total_budget)*100},
+            "Date": {"date": {"start": today.isoformat()}},
+            **category_properties  # Include category percentages
         }
     }
 
