@@ -15,6 +15,8 @@ MONTHLY_REPORTS_DB_ID = os.getenv("MONTHLY_REPORTS_DB_ID")
 SUBSCRIPTIONS_DB_ID = os.getenv("SUBSCRIPTIONS_DB_ID")
 MONTH_EXPENSE_DB_ID = os.getenv("MONTH_EXPENSE_DB_ID")
 MONTH_INCOME_DB_ID = os.getenv("MONTH_INCOME_DB_ID")
+ACCOUNTS_DB_ID = os.getenv("ACCOUNTS_DB_ID")
+INCOME_DB_ID = os.getenv("INCOME_DB_ID")
 
 HEADERS = {
     "Authorization": f"Bearer {NOTION_API_KEY}",
@@ -132,12 +134,26 @@ def get_subscriptions():
     for item in subscriptions:
         try:
             subscription_name = item["properties"]["Name"]["title"][0]["text"]["content"]
-            monthly_cost = item["properties"]["Monthly Cost"]['formula']["number"]
+            monthly_cost = item["properties"]["Monthly Cost"]["formula"]["number"]
             status = item["properties"]["Status"]["select"]["name"]
             subscription_list.append({"subscription": subscription_name, "cost": monthly_cost, "status": status})
         except KeyError:
             continue
     return subscription_list
+
+#Fetch Account Data
+def get_accounts():
+    accounts = fetch_database_entries(ACCOUNTS_DB_ID)
+    account_list = []
+    for item in accounts:
+        try:
+            account_id = item["id"]
+            account_name = item["properties"]["Account"]["title"][0]["text"]["content"]
+            balance = item["properties"]["Current Balance"]["formula"]["number"]
+            account_list.append({"id":account_id, "account": account_name, "balance": balance})
+        except KeyError:
+            continue
+    return account_list
 
 # Write Monthly Report to Notion
 def write_report_to_notion(year, month, report_text, expenses):
@@ -228,9 +244,9 @@ async def add_expenses_to_month_expense(expenses):
 def add_expenses_to_month_expense_sync(expenses):
     asyncio.run(add_expenses_to_month_expense(expenses))
 
-async def clear_month_expense():
+async def clear_month_database(database_id):
     """Deletes all entries in the 'Month Expense' database."""
-    url = f"https://api.notion.com/v1/databases/{MONTH_EXPENSE_DB_ID}/query"
+    url = f"https://api.notion.com/v1/databases/{database_id}/query"
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=HEADERS) as response:
             if response.status == 200:
@@ -245,6 +261,98 @@ async def clear_month_expense():
             else:
                 print(f"❌ Error fetching Month Expense data: {await response.text()}")
 
-def clear_month_expense_sync():
-    asyncio.run(clear_month_expense())
+def clear_month_database_sync(database_id):
+    asyncio.run(clear_month_database(database_id))
 
+def get_imcome_for_month(year, month, account_list):
+    _, last_day = calendar.monthrange(year, month)
+    start_date = f"{year}-{month:02d}-01"
+    end_date = f"{year}-{month:02d}-{last_day:02d}"
+    print(f"📅 Fetching income from {start_date} to {end_date}...")
+    url = f"https://api.notion.com/v1/databases/{INCOME_DB_ID}/query"
+
+    query_payload = {
+        "filter": {
+            "and": [
+                {
+                    "property": "Date",
+                    "date": {"on_or_after": start_date}
+                },
+                {
+                    "property": "Date",
+                    "date": {"on_or_before": end_date}
+                }
+            ]
+        }
+    }
+
+    response = requests.post(url, headers=HEADERS, json=query_payload)
+
+    if response.status_code == 200:
+        incomes = response.json()["results"]
+        income_data = []
+        
+        for item in incomes:
+            # Extract properties safely with default values
+            title = item["properties"].get("Income", {}).get("title", [{}])[0].get("text", {}).get("content", "Unknown")
+            amount = item["properties"].get("Amount", {}).get("number", 0)
+            date = item["properties"].get("Date", {}).get("date", {}).get("start", "Unknown Date")
+            account_id = item["properties"].get("Accounts", {}).get("relation", [{}])[0].get("id", None)
+            account_name = get_account_name(account_id, account_list)
+
+            income_data.append({
+                "title": title,
+                "amount": amount,
+                "date": date,
+                "account": account_name,
+                "id": item.get("id", "No ID")
+            })
+
+        return income_data
+    else:
+        print(f"❌ Error fetching income: {response.text}")
+        return []
+    
+def get_account_name(account_id, account_list):
+    for account in account_list:
+        if account["id"] == account_id:
+            return account["account"]
+    return "Uncategorized"
+
+async def add_income(session, income, retries=3, backoff_in_seconds=1):
+    title = income.get("title", "Untitled Income")
+    amount = income.get("amount", 0)
+    date = income.get("date", "Unknown Date")
+    account = income.get("account", "Uncategorized")
+
+    payload = {
+        "parent": {"database_id": MONTH_INCOME_DB_ID},
+        "properties": {
+            "Income": {"title": [{"text": {"content": title}}]},
+            "Amount": {"number": amount},
+            "Date": {"date": {"start": date}},
+            "Source of Income": {"select": {"name": account}}
+        }
+    }
+
+    for attempt in range(retries):
+        async with session.post("https://api.notion.com/v1/pages", headers=HEADERS, json=payload) as response:
+            if response.status == 200:
+                print(f"✅ Added income: {title} - ${amount}")
+                return
+            elif response.status == 409:
+                print(f"⚠️ Conflict error adding income: {title}. Retrying...")
+                await asyncio.sleep(backoff_in_seconds * (2 ** attempt))
+            else:
+                print(f"❌ Error adding income: {await response.text()}")
+                return
+            
+    print(f"❌ Failed to add income after {retries} attempts: {title}")
+
+async def add_incomes_to_month_income(incomes):
+    async with aiohttp.ClientSession() as session:
+        tasks = [add_income(session, income) for income in incomes]
+        await asyncio.gather(*tasks)
+
+def add_incomes_to_month_income_sync(incomes):
+    asyncio.run(add_incomes_to_month_income(incomes))
