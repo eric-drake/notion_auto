@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import aiohttp
 import asyncio
+import random
 
 # Load API credentials
 load_dotenv()
@@ -239,6 +240,7 @@ async def add_expense(session, expense,retries=3, backoff_in_seconds=1):
                 return
             elif response.status == 409:  # Conflict error
                 print(f"⚠️ Conflict error adding expense: {title}. Retrying...")
+                jitter = random.uniform(0,1)
                 await asyncio.sleep(backoff_in_seconds * (2 ** attempt))  # Exponential backoff
             else:
                 print(f"❌ Error adding expense: {await response.text()}")

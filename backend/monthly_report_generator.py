@@ -1,6 +1,3 @@
-from notion_utils import get_expenses_for_month, get_categories
-
-
 def generate_monthly_summary(category_list, expenses, subcription_list):
     """Processes expenses and generates a monthly summary"""
     NO_BUDGET_CATEGORY_LIST = ['Beauty','Commute','Investment','Rent', 'Utilities', 'Subscription']
