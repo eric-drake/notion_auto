@@ -55,12 +55,12 @@ def generate_monthly_summary(category_list, expenses, subcription_list):
     category_percentages["Other"] = (no_budget_total / other_budget_total) * 100 if other_budget_total else 0
 
     # Prepare a summary report text
-    report_lines = [f"Total Expense/Budget: {total_expense}/{total_budget}"]
+    report_lines = [f"Total Expense/Budget: {total_expense:.2f}/{total_budget:.2f}"]
     for category, total_spent in category_expense_summary.items():
         budget = category_budget_map.get(category, 0)
         status = "Over Budget" if total_spent > budget else "Within Budget"
         percent_used = category_percentages[category]
-        report_lines.append(f"Category: {category} | Expense: {total_spent} | Budget: {budget}")
+        report_lines.append(f"Category: {category} | Expense: {total_spent:.2f} | Budget: {budget:.2f}")
         report_lines.append(f"Used: {percent_used:.2f}% | Status: {status}")
 
     return expenses, total_expense, total_budget, category_percentages, "\n".join(report_lines)
